@@ -658,13 +658,27 @@ function initChartsForStock(ticker) {
         title: '30',
     });
 
-    // Sync zoom/scroll
+    // Sync zoom/scroll & axis alignment
     let isReflecting = false;
+    const priceScale = priceChart.priceScale('right');
+    const rsiScale = rsiChart.priceScale('right');
+
+    function syncPriceScaleWidths() {
+        const w1 = priceScale.width();
+        const w2 = rsiScale.width();
+        if (w1 > 0 && w2 > 0 && w1 !== w2) {
+            const maxWidth = Math.max(w1, w2);
+            priceScale.applyOptions({ minimumWidth: maxWidth });
+            rsiScale.applyOptions({ minimumWidth: maxWidth });
+        }
+    }
+
     priceChart.timeScale().subscribeVisibleLogicalRangeChange(range => {
         if (isReflecting) return;
         isReflecting = true;
         rsiChart.timeScale().setVisibleLogicalRange(range);
         isReflecting = false;
+        syncPriceScaleWidths();
     });
 
     rsiChart.timeScale().subscribeVisibleLogicalRangeChange(range => {
@@ -672,6 +686,7 @@ function initChartsForStock(ticker) {
         isReflecting = true;
         priceChart.timeScale().setVisibleLogicalRange(range);
         isReflecting = false;
+        syncPriceScaleWidths();
     });
 
     // Crosshair hover and Legend sync
@@ -689,7 +704,8 @@ function initChartsForStock(ticker) {
         ema100Series,
         ema200Series,
         period: 'daily',
-        lastData: []
+        lastData: [],
+        syncPriceScaleWidths: syncPriceScaleWidths
     };
     
     // Resize observer
@@ -699,6 +715,7 @@ function initChartsForStock(ticker) {
         const currentHeights = getChartHeights();
         priceChart.resize(width, currentHeights.price);
         rsiChart.resize(width, currentHeights.rsi);
+        requestAnimationFrame(syncPriceScaleWidths);
     });
     resizeObserver.observe(mainContainer);
 }
@@ -922,6 +939,16 @@ async function fetchAndDrawChart(ticker) {
         chartState.ema200Series.setData(ema200);
         
         chartState.priceChart.timeScale().fitContent();
+        
+        // Perfect vertical axis alignment sync on data load
+        if (chartState.syncPriceScaleWidths) {
+            chartState.syncPriceScaleWidths();
+        }
+        setTimeout(() => {
+            if (chartState.syncPriceScaleWidths) {
+                chartState.syncPriceScaleWidths();
+            }
+        }, 100);
         
         // Update Card UI Header
         const summary = resData.summary;
