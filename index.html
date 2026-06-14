@@ -46,13 +46,16 @@
             <button id="theme-toggle-btn" class="btn btn-secondary" title="Tema Değiştir">
                 <i class="fa-solid fa-moon"></i>
             </button>
-            <button id="portfolio-manage-btn" class="btn btn-secondary" title="Portföyü Yedekle / Yükle">
-                <i class="fa-solid fa-file-export"></i> Yedekle / Yükle
+            <button id="import-portfolio-btn" class="btn btn-secondary" title="Portföy İçe Aktar (.json)">
+                <i class="fa-solid fa-file-import"></i> İçe Aktar
             </button>
-            <button id="add-stock-btn" class="btn btn-secondary">
+            <button id="add-stock-btn" class="btn btn-secondary" title="Hisse Ekle">
                 <i class="fa-solid fa-plus"></i> Hisse Ekle
             </button>
-            <button id="update-all-btn" class="btn btn-primary">
+            <button id="download-portfolio-btn" class="btn btn-secondary" title="Portföy İndir (JSON)">
+                <i class="fa-solid fa-file-arrow-down"></i> İndir
+            </button>
+            <button id="update-all-btn" class="btn btn-primary" title="Tümünü Güncelle">
                 <i class="fa-solid fa-rotate"></i> Tümünü Güncelle
             </button>
         </div>
@@ -93,30 +96,8 @@
         </div>
     </div>
 
-    <!-- Portfolio Import/Export Modal -->
-    <div id="portfolio-modal" class="modal-overlay" style="display: none;">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Portföy İçe / Dışa Aktar</h2>
-                <button class="modal-close" id="close-portfolio-modal-btn"><i class="fa-solid fa-xmark"></i></button>
-            </div>
-            <div class="modal-body">
-                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;">
-                    Portföyünüzü yedeklemek için aşağıdaki kodu kopyalayabilir veya başka bir cihaza aktarmak için kodu aşağıdaki kutuya yapıştırıp "İçe Aktar" diyebilirsiniz.
-                </p>
-                <div class="form-group">
-                    <label for="portfolio-json-textarea">Portföy Kodu (JSON)</label>
-                    <textarea id="portfolio-json-textarea" rows="8" style="width: 100%; padding: 0.75rem; border-radius: 8px; border: 1px solid var(--border-color); background-color: var(--input-bg); color: var(--text-primary); font-family: monospace; font-size: 0.8rem; resize: none;" placeholder="Portföy kodunu buraya yapıştırın..."></textarea>
-                </div>
-                <div class="modal-error" id="portfolio-modal-error-msg" style="display: none; margin-top: 0.5rem;"></div>
-                <div class="modal-success" id="portfolio-modal-success-msg" style="display: none; color: var(--color-green); font-size: 0.8rem; margin-top: 0.5rem;"></div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" id="copy-portfolio-btn"><i class="fa-solid fa-copy"></i> Kopyala</button>
-                <button class="btn btn-primary" id="import-portfolio-submit-btn"><i class="fa-solid fa-file-import"></i> İçe Aktar</button>
-            </div>
-        </div>
-    </div>
+    <!-- Hidden file input for portfolio import -->
+    <input type="file" id="portfolio-file-input" accept=".json" style="display: none;">
 
     <footer class="app-footer">
         <p>&copy; 2026 Urla Portföy Grafik. Veriler 15 dakika gecikmelidir. Grafik gücü: TradingView Lightweight Charts.</p>

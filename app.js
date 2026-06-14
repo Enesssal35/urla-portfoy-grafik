@@ -42,14 +42,9 @@ const usdtryValue = document.getElementById('usdtry-value');
 const usdtryTime = document.getElementById('usdtry-time');
 
 // Portfolio backup elements
-const portfolioManageBtn = document.getElementById('portfolio-manage-btn');
-const portfolioModal = document.getElementById('portfolio-modal');
-const closePortfolioModalBtn = document.getElementById('close-portfolio-modal-btn');
-const portfolioJsonTextarea = document.getElementById('portfolio-json-textarea');
-const copyPortfolioBtn = document.getElementById('copy-portfolio-btn');
-const importPortfolioSubmitBtn = document.getElementById('import-portfolio-submit-btn');
-const portfolioModalErrorMsg = document.getElementById('portfolio-modal-error-msg');
-const portfolioModalSuccessMsg = document.getElementById('portfolio-modal-success-msg');
+const importPortfolioBtn = document.getElementById('import-portfolio-btn');
+const downloadPortfolioBtn = document.getElementById('download-portfolio-btn');
+const portfolioFileInput = document.getElementById('portfolio-file-input');
 const totalStocksCount = document.getElementById('total-stocks-count');
 
 // ==========================================================================
@@ -91,13 +86,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     saveStockBtn.addEventListener('click', handleAddStock);
 
     // Portfolio backup listeners
-    portfolioManageBtn.addEventListener('click', showPortfolioModal);
-    closePortfolioModalBtn.addEventListener('click', hidePortfolioModal);
-    portfolioModal.addEventListener('click', (e) => {
-        if (e.target === portfolioModal) hidePortfolioModal();
-    });
-    copyPortfolioBtn.addEventListener('click', handleCopyPortfolio);
-    importPortfolioSubmitBtn.addEventListener('click', handleImportPortfolio);
+    importPortfolioBtn.addEventListener('click', () => portfolioFileInput.click());
+    portfolioFileInput.addEventListener('change', handleImportPortfolioFile);
+    downloadPortfolioBtn.addEventListener('click', handleDownloadPortfolio);
 });
 
 function initStocksList() {
@@ -1084,82 +1075,71 @@ function setModalLoading(isLoading) {
 }
 
 // ==========================================================================
-// PORTFOLIO BACKUP & RESTORE LOGIC (IMPORT / EXPORT)
+// PORTFOLIO BACKUP & RESTORE LOGIC (JSON FILE DOWNLOAD / UPLOAD)
 // ==========================================================================
-function showPortfolioModal() {
-    portfolioModalErrorMsg.style.display = 'none';
-    portfolioModalSuccessMsg.style.display = 'none';
-    
-    // Export current stocks to textarea
-    portfolioJsonTextarea.value = JSON.stringify(appState.stocks, null, 4);
-    portfolioModal.style.display = 'flex';
-}
-
-function hidePortfolioModal() {
-    portfolioModal.style.display = 'none';
-}
-
-async function handleCopyPortfolio() {
+function handleDownloadPortfolio() {
     try {
-        await navigator.clipboard.writeText(portfolioJsonTextarea.value);
-        showPortfolioSuccess('Portföy kodu panoya kopyalandı!');
+        const dataStr = JSON.stringify(appState.stocks, null, 4);
+        const blob = new Blob([dataStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'urla_portfoy.json';
+        document.body.appendChild(a);
+        a.click();
+        
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
     } catch (err) {
-        showPortfolioError('Kopyalama başarısız oldu: ' + err.message);
+        alert('Portföy indirilirken hata oluştu: ' + err.message);
     }
 }
 
-async function handleImportPortfolio() {
-    portfolioModalErrorMsg.style.display = 'none';
-    portfolioModalSuccessMsg.style.display = 'none';
+function handleImportPortfolioFile(event) {
+    const file = event.target.files[0];
+    if (!file) return;
     
-    const inputVal = portfolioJsonTextarea.value.trim();
-    if (!inputVal) {
-        showPortfolioError('Lütfen geçerli bir portföy kodu yapıştırın.');
-        return;
-    }
-    
-    try {
-        const parsed = JSON.parse(inputVal);
-        if (!Array.isArray(parsed)) {
-            throw new Error('Geçersiz format: Veri bir dizi (array) olmalıdır.');
-        }
-        
-        // Basic validation of each item
-        for (const item of parsed) {
-            if (!item.ticker || !item.name) {
-                throw new Error('Geçersiz format: Her hissenin "ticker" ve "name" alanı olmalıdır.');
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        try {
+            const parsed = JSON.parse(e.target.result);
+            if (!Array.isArray(parsed)) {
+                throw new Error('Geçersiz format: Veri bir dizi (array) olmalıdır.');
             }
+            
+            // Basic validation
+            for (const item of parsed) {
+                if (!item.ticker || !item.name) {
+                    throw new Error('Geçersiz format: Her hissenin "ticker" ve "name" alanı olmalıdır.');
+                }
+            }
+            
+            const confirmImport = confirm('Yeni portföyü içe aktarmak istediğinize emin misiniz? Mevcut hisse listenizin üzerine yazılacaktır.');
+            if (!confirmImport) {
+                portfolioFileInput.value = '';
+                return;
+            }
+            
+            // Save & re-render
+            appState.stocks = parsed;
+            localStorage.setItem('hisse_dashboard_stocks', JSON.stringify(appState.stocks));
+            
+            // Update total count
+            const totalStocksCount = document.getElementById('total-stocks-count');
+            if (totalStocksCount) totalStocksCount.textContent = appState.stocks.length;
+            
+            stocksGrid.innerHTML = '';
+            initDashboardStructure();
+            await updateAllCharts();
+            
+            alert('Portföy başarıyla içe aktarıldı!');
+        } catch (err) {
+            alert('İçe aktarma hatası: ' + err.message);
+        } finally {
+            portfolioFileInput.value = ''; // Reset input to allow selecting same file again
         }
-        
-        const confirmImport = confirm('Yeni portföyü içe aktarmak istediğinize emin misiniz? Mevcut portföyünüzün üzerine yazılacaktır.');
-        if (!confirmImport) return;
-        
-        // Save to state and localStorage
-        appState.stocks = parsed;
-        localStorage.setItem('hisse_dashboard_stocks', JSON.stringify(appState.stocks));
-        totalStocksCount.textContent = appState.stocks.length;
-        
-        // Re-render dashboard
-        stocksGrid.innerHTML = '';
-        initDashboardStructure();
-        await updateAllCharts();
-        
-        showPortfolioSuccess('Portföy başarıyla içe aktarıldı!');
-        setTimeout(hidePortfolioModal, 1500);
-    } catch (e) {
-        showPortfolioError('İçe aktarma hatası: ' + e.message);
-    }
-}
-
-function showPortfolioError(msg) {
-    portfolioModalErrorMsg.textContent = msg;
-    portfolioModalErrorMsg.style.display = 'block';
-    portfolioModalSuccessMsg.style.display = 'none';
-}
-
-function showPortfolioSuccess(msg) {
-    portfolioModalSuccessMsg.textContent = msg;
-    portfolioModalSuccessMsg.style.display = 'block';
-    portfolioModalErrorMsg.style.display = 'none';
+    };
+    reader.readAsText(file);
 }
 
