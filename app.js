@@ -40,6 +40,16 @@ const stockNameInput = document.getElementById('stock-name-input');
 const modalErrorMsg = document.getElementById('modal-error-msg');
 const usdtryValue = document.getElementById('usdtry-value');
 const usdtryTime = document.getElementById('usdtry-time');
+
+// Portfolio backup elements
+const portfolioManageBtn = document.getElementById('portfolio-manage-btn');
+const portfolioModal = document.getElementById('portfolio-modal');
+const closePortfolioModalBtn = document.getElementById('close-portfolio-modal-btn');
+const portfolioJsonTextarea = document.getElementById('portfolio-json-textarea');
+const copyPortfolioBtn = document.getElementById('copy-portfolio-btn');
+const importPortfolioSubmitBtn = document.getElementById('import-portfolio-submit-btn');
+const portfolioModalErrorMsg = document.getElementById('portfolio-modal-error-msg');
+const portfolioModalSuccessMsg = document.getElementById('portfolio-modal-success-msg');
 const totalStocksCount = document.getElementById('total-stocks-count');
 
 // ==========================================================================
@@ -79,6 +89,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (e.target === addStockModal) hideModal();
     });
     saveStockBtn.addEventListener('click', handleAddStock);
+
+    // Portfolio backup listeners
+    portfolioManageBtn.addEventListener('click', showPortfolioModal);
+    closePortfolioModalBtn.addEventListener('click', hidePortfolioModal);
+    portfolioModal.addEventListener('click', (e) => {
+        if (e.target === portfolioModal) hidePortfolioModal();
+    });
+    copyPortfolioBtn.addEventListener('click', handleCopyPortfolio);
+    importPortfolioSubmitBtn.addEventListener('click', handleImportPortfolio);
 });
 
 function initStocksList() {
@@ -519,6 +538,14 @@ function createStockCard(stock) {
     setupCardEventListeners(stock.ticker);
 }
 
+function getChartHeights() {
+    const isMobile = window.innerWidth < 768;
+    return {
+        price: isMobile ? 220 : 340,
+        rsi: isMobile ? 80 : 120
+    };
+}
+
 function initChartsForStock(ticker) {
     const safeId = ticker.replace('.', '_');
     const mainContainer = document.getElementById(`chart-main-${safeId}`);
@@ -560,9 +587,10 @@ function initChartsForStock(ticker) {
         }
     };
 
+    const heights = getChartHeights();
     const priceChart = LightweightCharts.createChart(mainContainer, {
         ...chartOptions,
-        height: 340
+        height: heights.price
     });
     
     // Main Candlestick Series
@@ -599,7 +627,7 @@ function initChartsForStock(ticker) {
     // RSI Chart
     const rsiChart = LightweightCharts.createChart(rsiContainer, {
         ...chartOptions,
-        height: 120,
+        height: heights.rsi,
         rightPriceScale: {
             borderColor: isLight ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.08)',
             visible: true,
@@ -675,8 +703,9 @@ function initChartsForStock(ticker) {
     const resizeObserver = new ResizeObserver(entries => {
         if (entries.length === 0) return;
         const { width } = entries[0].contentRect;
-        priceChart.resize(width, 340);
-        rsiChart.resize(width, 120);
+        const currentHeights = getChartHeights();
+        priceChart.resize(width, currentHeights.price);
+        rsiChart.resize(width, currentHeights.rsi);
     });
     resizeObserver.observe(mainContainer);
 }
@@ -1053,3 +1082,84 @@ function setModalLoading(isLoading) {
         saveStockBtn.innerHTML = 'Ekle';
     }
 }
+
+// ==========================================================================
+// PORTFOLIO BACKUP & RESTORE LOGIC (IMPORT / EXPORT)
+// ==========================================================================
+function showPortfolioModal() {
+    portfolioModalErrorMsg.style.display = 'none';
+    portfolioModalSuccessMsg.style.display = 'none';
+    
+    // Export current stocks to textarea
+    portfolioJsonTextarea.value = JSON.stringify(appState.stocks, null, 4);
+    portfolioModal.style.display = 'flex';
+}
+
+function hidePortfolioModal() {
+    portfolioModal.style.display = 'none';
+}
+
+async function handleCopyPortfolio() {
+    try {
+        await navigator.clipboard.writeText(portfolioJsonTextarea.value);
+        showPortfolioSuccess('Portföy kodu panoya kopyalandı!');
+    } catch (err) {
+        showPortfolioError('Kopyalama başarısız oldu: ' + err.message);
+    }
+}
+
+async function handleImportPortfolio() {
+    portfolioModalErrorMsg.style.display = 'none';
+    portfolioModalSuccessMsg.style.display = 'none';
+    
+    const inputVal = portfolioJsonTextarea.value.trim();
+    if (!inputVal) {
+        showPortfolioError('Lütfen geçerli bir portföy kodu yapıştırın.');
+        return;
+    }
+    
+    try {
+        const parsed = JSON.parse(inputVal);
+        if (!Array.isArray(parsed)) {
+            throw new Error('Geçersiz format: Veri bir dizi (array) olmalıdır.');
+        }
+        
+        // Basic validation of each item
+        for (const item of parsed) {
+            if (!item.ticker || !item.name) {
+                throw new Error('Geçersiz format: Her hissenin "ticker" ve "name" alanı olmalıdır.');
+            }
+        }
+        
+        const confirmImport = confirm('Yeni portföyü içe aktarmak istediğinize emin misiniz? Mevcut portföyünüzün üzerine yazılacaktır.');
+        if (!confirmImport) return;
+        
+        // Save to state and localStorage
+        appState.stocks = parsed;
+        localStorage.setItem('hisse_dashboard_stocks', JSON.stringify(appState.stocks));
+        totalStocksCount.textContent = appState.stocks.length;
+        
+        // Re-render dashboard
+        stocksGrid.innerHTML = '';
+        initDashboardStructure();
+        await updateAllCharts();
+        
+        showPortfolioSuccess('Portföy başarıyla içe aktarıldı!');
+        setTimeout(hidePortfolioModal, 1500);
+    } catch (e) {
+        showPortfolioError('İçe aktarma hatası: ' + e.message);
+    }
+}
+
+function showPortfolioError(msg) {
+    portfolioModalErrorMsg.textContent = msg;
+    portfolioModalErrorMsg.style.display = 'block';
+    portfolioModalSuccessMsg.style.display = 'none';
+}
+
+function showPortfolioSuccess(msg) {
+    portfolioModalSuccessMsg.textContent = msg;
+    portfolioModalSuccessMsg.style.display = 'block';
+    portfolioModalErrorMsg.style.display = 'none';
+}
+
