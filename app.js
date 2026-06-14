@@ -575,6 +575,7 @@ function initChartsForStock(ticker) {
         },
         rightPriceScale: {
             borderColor: isLight ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.08)',
+            minimumWidth: 75,
         }
     };
 
@@ -623,6 +624,7 @@ function initChartsForStock(ticker) {
             borderColor: isLight ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.08)',
             visible: true,
             autoScale: true,
+            minimumWidth: 75,
         },
         timeScale: {
             ...chartOptions.timeScale,
