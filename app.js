@@ -627,11 +627,11 @@ function initChartsForStock(ticker) {
     });
 
     // 5 EMA Line Series
-    const ema8Series = priceChart.addLineSeries({ color: '#29b6f6', lineWidth: 1.0, title: 'EMA 8' });
-    const ema20Series = priceChart.addLineSeries({ color: '#ffca28', lineWidth: 1.0, title: 'EMA 20' });
-    const ema50Series = priceChart.addLineSeries({ color: '#ff7043', lineWidth: 1.0, title: 'EMA 50' });
-    const ema100Series = priceChart.addLineSeries({ color: '#ab47bc', lineWidth: 1.0, title: 'EMA 100' });
-    const ema200Series = priceChart.addLineSeries({ color: '#ec407a', lineWidth: 1.0, title: 'EMA 200' });
+    const ema8Series = priceChart.addLineSeries({ color: '#29b6f6', lineWidth: 1.0, title: 'EMA 8', lastValueVisible: false, priceLineVisible: false });
+    const ema20Series = priceChart.addLineSeries({ color: '#ffca28', lineWidth: 1.0, title: 'EMA 20', lastValueVisible: false, priceLineVisible: false });
+    const ema50Series = priceChart.addLineSeries({ color: '#ff7043', lineWidth: 1.0, title: 'EMA 50', lastValueVisible: false, priceLineVisible: false });
+    const ema100Series = priceChart.addLineSeries({ color: '#ab47bc', lineWidth: 1.0, title: 'EMA 100', lastValueVisible: false, priceLineVisible: false });
+    const ema200Series = priceChart.addLineSeries({ color: '#ec407a', lineWidth: 1.0, title: 'EMA 200', lastValueVisible: false, priceLineVisible: false });
 
     // RSI Chart
     const rsiChart = LightweightCharts.createChart(rsiContainer, {
@@ -792,6 +792,9 @@ function setupCrosshairSync(priceChart, rsiChart, candleSeries, volumeSeries, rs
     }
 
     priceChart.subscribeCrosshairMove(param => {
+        if (appState.charts[ticker] && appState.charts[ticker].syncPriceScaleWidths) {
+            appState.charts[ticker].syncPriceScaleWidths();
+        }
         if (param.time === undefined || param.point === undefined) {
             const stockData = appState.charts[ticker].lastData;
             if (stockData && stockData.length > 0) {
@@ -808,6 +811,9 @@ function setupCrosshairSync(priceChart, rsiChart, candleSeries, volumeSeries, rs
     });
 
     rsiChart.subscribeCrosshairMove(param => {
+        if (appState.charts[ticker] && appState.charts[ticker].syncPriceScaleWidths) {
+            appState.charts[ticker].syncPriceScaleWidths();
+        }
         if (param.time === undefined || param.point === undefined) {
             const stockData = appState.charts[ticker].lastData;
             if (stockData && stockData.length > 0) {
