@@ -529,12 +529,29 @@ function createStockCard(stock) {
     setupCardEventListeners(stock.ticker);
 }
 
-function getChartHeights() {
+function getChartHeights(ticker) {
+    if (ticker) {
+        const safeId = ticker.replace('.', '_');
+        const mainContainer = document.getElementById(`chart-main-${safeId}`);
+        const rsiContainer = document.getElementById(`chart-rsi-${safeId}`);
+        if (mainContainer && rsiContainer && mainContainer.clientHeight > 0 && rsiContainer.clientHeight > 0) {
+            return {
+                price: mainContainer.clientHeight,
+                rsi: rsiContainer.clientHeight
+            };
+        }
+    }
+    
+    // Fallback based on CSS media queries
+    const isLandscape = window.innerHeight < 550;
+    if (isLandscape) {
+        return { price: 180, rsi: 70 };
+    }
     const isMobile = window.innerWidth < 768;
-    return {
-        price: isMobile ? 220 : 340,
-        rsi: isMobile ? 80 : 120
-    };
+    if (isMobile) {
+        return { price: 260, rsi: 90 };
+    }
+    return { price: 350, rsi: 110 };
 }
 
 function initChartsForStock(ticker) {
@@ -579,7 +596,7 @@ function initChartsForStock(ticker) {
         }
     };
 
-    const heights = getChartHeights();
+    const heights = getChartHeights(ticker);
     const priceChart = LightweightCharts.createChart(mainContainer, {
         ...chartOptions,
         height: heights.price
@@ -712,7 +729,7 @@ function initChartsForStock(ticker) {
     const resizeObserver = new ResizeObserver(entries => {
         if (entries.length === 0) return;
         const { width } = entries[0].contentRect;
-        const currentHeights = getChartHeights();
+        const currentHeights = getChartHeights(ticker);
         priceChart.resize(width, currentHeights.price);
         rsiChart.resize(width, currentHeights.rsi);
         requestAnimationFrame(syncPriceScaleWidths);
