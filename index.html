@@ -21,12 +21,17 @@
 </head>
 <body data-theme="dark">
     <header class="app-header">
-        <div class="header-logo">
-            <div class="logo-icon"><i class="fa-solid fa-chart-line"></i></div>
-            <div class="logo-text">
-                <h1>URLA PORTFÖY</h1>
-                <span>GRAFİK SİSTEMİ</span>
+        <div class="header-left" style="display: flex; align-items: center; gap: 1.5rem;">
+            <div class="header-logo">
+                <div class="logo-icon"><i class="fa-solid fa-chart-line"></i></div>
+                <div class="logo-text">
+                    <h1>URLA PORTFÖY</h1>
+                    <span>GRAFİK SİSTEMİ</span>
+                </div>
             </div>
+            <button id="import-portfolio-btn" class="btn btn-secondary" title="Portföy İçe Aktar (.json)">
+                <i class="fa-solid fa-file-import"></i> İçe Aktar
+            </button>
         </div>
         
         <div class="header-stats">
@@ -45,9 +50,6 @@
         <div class="header-actions">
             <button id="theme-toggle-btn" class="btn btn-secondary" title="Tema Değiştir">
                 <i class="fa-solid fa-moon"></i>
-            </button>
-            <button id="import-portfolio-btn" class="btn btn-secondary" title="Portföy İçe Aktar (.json)">
-                <i class="fa-solid fa-file-import"></i> İçe Aktar
             </button>
             <button id="add-stock-btn" class="btn btn-secondary" title="Hisse Ekle">
                 <i class="fa-solid fa-plus"></i> Hisse Ekle

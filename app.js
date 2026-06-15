@@ -940,8 +940,10 @@ async function fetchAndDrawChart(ticker) {
                 color: isUp ? 'rgba(0, 200, 83, 0.12)' : 'rgba(213, 0, 0, 0.12)'
             });
             
-            if (p.rsi !== 0.0) {
+            if (p.rsi !== 0.0 && p.rsi !== null) {
                 rsi.push({ time: p.time, value: p.rsi });
+            } else {
+                rsi.push({ time: p.time });
             }
             
             if (p.ema8 !== null) ema8.push({ time: p.time, value: p.ema8 });

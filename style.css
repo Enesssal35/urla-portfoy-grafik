@@ -517,22 +517,22 @@ body {
 }
 
 .chart-main {
-    height: 350px;
+    height: 400px;
     width: 100%;
     border-radius: 8px;
     overflow: hidden;
     position: relative;
-    background-color: rgba(0, 0, 0, 0.1);
+    background-color: transparent;
     transition: background-color var(--transition-normal);
 }
 
 .chart-rsi {
-    height: 110px;
+    height: 140px;
     width: 100%;
     border-radius: 8px;
     overflow: hidden;
     position: relative;
-    background-color: rgba(0, 0, 0, 0.1);
+    background-color: transparent;
     transition: background-color var(--transition-normal);
 }
 
@@ -891,7 +891,7 @@ body {
     .header-actions {
         width: 100%;
         display: grid;
-        grid-template-columns: repeat(5, 1fr);
+        grid-template-columns: repeat(4, 1fr);
         gap: 0.5rem;
     }
     
@@ -953,19 +953,11 @@ body {
     
     /* Compact Stats Panel */
     .header-stats {
-        justify-content: center !important;
-        gap: 0.5rem !important;
-        width: auto !important;
+        display: none !important;
     }
     
     .stat-card {
-        flex-direction: row !important;
-        align-items: center !important;
-        gap: 0.4rem !important;
-        padding: 0.2rem 0.5rem !important;
-        min-width: 0 !important;
-        background-color: transparent !important;
-        border: none !important;
+        display: none !important;
     }
     
     .stat-card:last-child {
@@ -1015,11 +1007,11 @@ body {
     }
     
     .chart-main {
-        height: 180px !important;
+        height: 220px !important;
     }
     
     .chart-rsi {
-        height: 70px !important;
+        height: 90px !important;
     }
     
     .chart-legend {
