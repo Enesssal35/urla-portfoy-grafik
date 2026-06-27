@@ -445,7 +445,7 @@ function initDashboardStructure() {
 
 function createStockCard(stock) {
     const card = document.createElement('div');
-    const safeId = stock.ticker.replace('.', '_');
+    const safeId = stock.ticker.replace(/[^a-zA-Z0-9]/g, '_');
     card.className = 'stock-card';
     card.id = `card-${safeId}`;
     
@@ -738,7 +738,11 @@ function initChartsForStock(ticker) {
 }
 
 function setupCrosshairSync(priceChart, rsiChart, candleSeries, volumeSeries, rsiSeries, ema8Series, ema20Series, ema50Series, ema100Series, ema200Series, ticker) {
-    const safeId = ticker.replace('.', '_');
+    const safeId = ticker.replace(/[^a-zA-Z0-9]/g, '_');
+    
+    const isFx = ticker.endsWith('=X');
+    const sym = isFx ? '₺' : '$';
+    const dec = isFx ? 4 : 2;
     
     const elements = {
         open: document.getElementById(`leg-open-${safeId}`),
@@ -755,10 +759,10 @@ function setupCrosshairSync(priceChart, rsiChart, candleSeries, volumeSeries, rs
 
     function updateLegend(hoverData) {
         if (hoverData) {
-            elements.open.textContent = `$${hoverData.open.toFixed(2)}`;
-            elements.high.textContent = `$${hoverData.high.toFixed(2)}`;
-            elements.low.textContent = `$${hoverData.low.toFixed(2)}`;
-            elements.close.textContent = `$${hoverData.close.toFixed(2)}`;
+            elements.open.textContent = `${sym}${hoverData.open.toFixed(dec)}`;
+            elements.high.textContent = `${sym}${hoverData.high.toFixed(dec)}`;
+            elements.low.textContent = `${sym}${hoverData.low.toFixed(dec)}`;
+            elements.close.textContent = `${sym}${hoverData.close.toFixed(dec)}`;
             elements.rsi.textContent = hoverData.rsi ? hoverData.rsi.toFixed(2) : '--';
             
             // RSI colors
@@ -771,11 +775,11 @@ function setupCrosshairSync(priceChart, rsiChart, candleSeries, volumeSeries, rs
             }
             
             // EMAs
-            elements.ema8.textContent = hoverData.ema8 ? `$${hoverData.ema8.toFixed(2)}` : '--';
-            elements.ema20.textContent = hoverData.ema20 ? `$${hoverData.ema20.toFixed(2)}` : '--';
-            elements.ema50.textContent = hoverData.ema50 ? `$${hoverData.ema50.toFixed(2)}` : '--';
-            elements.ema100.textContent = hoverData.ema100 ? `$${hoverData.ema100.toFixed(2)}` : '--';
-            elements.ema200.textContent = hoverData.ema200 ? `$${hoverData.ema200.toFixed(2)}` : '--';
+            elements.ema8.textContent = hoverData.ema8 ? `${sym}${hoverData.ema8.toFixed(dec)}` : '--';
+            elements.ema20.textContent = hoverData.ema20 ? `${sym}${hoverData.ema20.toFixed(dec)}` : '--';
+            elements.ema50.textContent = hoverData.ema50 ? `${sym}${hoverData.ema50.toFixed(dec)}` : '--';
+            elements.ema100.textContent = hoverData.ema100 ? `${sym}${hoverData.ema100.toFixed(dec)}` : '--';
+            elements.ema200.textContent = hoverData.ema200 ? `${sym}${hoverData.ema200.toFixed(dec)}` : '--';
         } else {
             elements.open.textContent = '--';
             elements.high.textContent = '--';
@@ -831,7 +835,7 @@ function setupCrosshairSync(priceChart, rsiChart, candleSeries, volumeSeries, rs
 }
 
 function setupCardEventListeners(ticker) {
-    const safeId = ticker.replace('.', '_');
+    const safeId = ticker.replace(/[^a-zA-Z0-9]/g, '_');
     const cardEl = document.getElementById(`card-${safeId}`);
     
     // Period selection
@@ -901,7 +905,7 @@ function setupCardEventListeners(ticker) {
 
 // Fetch single stock chart data and render it
 async function fetchAndDrawChart(ticker) {
-    const safeId = ticker.replace('.', '_');
+    const safeId = ticker.replace(/[^a-zA-Z0-9]/g, '_');
     const loader = document.getElementById(`loader-${safeId}`);
     const chartState = appState.charts[ticker];
     
@@ -983,13 +987,17 @@ async function fetchAndDrawChart(ticker) {
         const low52El = document.getElementById(`low52-${safeId}`);
         const high52El = document.getElementById(`high52-${safeId}`);
         
-        priceEl.textContent = `$${summary.current_price.toFixed(2)}`;
+        const isFx = ticker.endsWith('=X');
+        const sym = isFx ? '₺' : '$';
+        const dec = isFx ? 4 : 2;
+        
+        priceEl.textContent = `${sym}${summary.current_price.toFixed(dec)}`;
         const changeSign = summary.change >= 0 ? '+' : '';
         changeEl.textContent = `${changeSign}${summary.change_percent.toFixed(2)}%`;
         changeEl.className = 'price-change ' + (summary.change >= 0 ? 'up' : 'down');
         
-        low52El.textContent = `$${summary.low_52w.toFixed(2)}`;
-        high52El.textContent = `$${summary.high_52w.toFixed(2)}`;
+        low52El.textContent = `${sym}${summary.low_52w.toFixed(dec)}`;
+        high52El.textContent = `${sym}${summary.high_52w.toFixed(dec)}`;
         timeEl.textContent = `${summary.last_updated}`;
         
         // Update Legend with latest point
@@ -1007,10 +1015,10 @@ async function fetchAndDrawChart(ticker) {
         const ema100Leg = document.getElementById(`leg-ema100-${safeId}`);
         const ema200Leg = document.getElementById(`leg-ema200-${safeId}`);
         
-        openLeg.textContent = `$${latestPoint.open.toFixed(2)}`;
-        highLeg.textContent = `$${latestPoint.high.toFixed(2)}`;
-        lowLeg.textContent = `$${latestPoint.low.toFixed(2)}`;
-        closeLeg.textContent = `$${latestPoint.close.toFixed(2)}`;
+        openLeg.textContent = `${sym}${latestPoint.open.toFixed(dec)}`;
+        highLeg.textContent = `${sym}${latestPoint.high.toFixed(dec)}`;
+        lowLeg.textContent = `${sym}${latestPoint.low.toFixed(dec)}`;
+        closeLeg.textContent = `${sym}${latestPoint.close.toFixed(dec)}`;
         rsiLeg.textContent = latestPoint.rsi ? latestPoint.rsi.toFixed(2) : '--';
         
         if (latestPoint.rsi) {
@@ -1019,11 +1027,11 @@ async function fetchAndDrawChart(ticker) {
             else rsiLeg.style.color = 'var(--color-rsi)';
         }
         
-        ema8Leg.textContent = latestPoint.ema8 ? `$${latestPoint.ema8.toFixed(2)}` : '--';
-        ema20Leg.textContent = latestPoint.ema20 ? `$${latestPoint.ema20.toFixed(2)}` : '--';
-        ema50Leg.textContent = latestPoint.ema50 ? `$${latestPoint.ema50.toFixed(2)}` : '--';
-        ema100Leg.textContent = latestPoint.ema100 ? `$${latestPoint.ema100.toFixed(2)}` : '--';
-        ema200Leg.textContent = latestPoint.ema200 ? `$${latestPoint.ema200.toFixed(2)}` : '--';
+        ema8Leg.textContent = latestPoint.ema8 ? `${sym}${latestPoint.ema8.toFixed(dec)}` : '--';
+        ema20Leg.textContent = latestPoint.ema20 ? `${sym}${latestPoint.ema20.toFixed(dec)}` : '--';
+        ema50Leg.textContent = latestPoint.ema50 ? `${sym}${latestPoint.ema50.toFixed(dec)}` : '--';
+        ema100Leg.textContent = latestPoint.ema100 ? `${sym}${latestPoint.ema100.toFixed(dec)}` : '--';
+        ema200Leg.textContent = latestPoint.ema200 ? `${sym}${latestPoint.ema200.toFixed(dec)}` : '--';
         
     } catch (error) {
         console.error(`${ticker} grafiği çizilirken hata oluştu:`, error);
