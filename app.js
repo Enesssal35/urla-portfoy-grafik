@@ -155,7 +155,7 @@ function updateThemeIcon() {
 const CLOUDFLARE_WORKER_URL = 'https://hisse-cors-proxy.enesla6352.workers.dev';
 
 async function fetchYahooChart(ticker, interval, range, retryCount = 0) {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=${interval}&range=${range}`;
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=${interval}&range=${range}&events=splits`;
     
     let proxyUrl = '';
     
@@ -312,53 +312,146 @@ async function getUSDAlignedChartData(ticker, period) {
     const stockClose = stockQuotes.close || [];
     const stockVolume = stockQuotes.volume || [];
     
-    const usdtryRates = {};
+    // Extract split events to normalize pre-split prices
+    // Yahoo's raw OHLC is NOT split-adjusted, causing absurd prices
+    // (e.g. CCOLA showed $27 because pre-11:1-split price of 890 TRY was used)
+    const splitEvents = [];
+    if (stockChart.events && stockChart.events.splits) {
+        for (const [tsKey, splitData] of Object.entries(stockChart.events.splits)) {
+            splitEvents.push({
+                ts: parseInt(tsKey),
+                // splitRatio = numerator/denominator (e.g. 1100/100 = 11 for 11:1 split)
+                ratio: splitData.numerator / splitData.denominator
+            });
+        }
+        splitEvents.sort((a, b) => a.ts - b.ts);
+    }
+
+    // Detect split transition indices where prices drop by a factor close to the ratio.
+    // This handles Yahoo Finance's inconsistent split date processing across intervals.
+    const splitTransitionIndices = {};
+    for (const split of splitEvents) {
+        const ratio = split.ratio;
+        let transitionIdx = -1;
+        for (let j = stockTs.length - 1; j > 0; j--) {
+            const cCurr = stockClose[j];
+            const cPrev = stockClose[j - 1];
+            if (cCurr !== null && cPrev !== null) {
+                if (cPrev / cCurr > ratio * 0.5) {
+                    transitionIdx = j;
+                    break;
+                }
+            }
+        }
+        splitTransitionIndices[ratio] = transitionIdx;
+    }
+    
+    // Build sorted array of USDTRY {ts, rate} for timestamp-based matching
+    // This avoids UTC vs local timezone date-string mismatches between BIST (UTC+3)
+    // and USDTRY (London GMT/BST) that caused wrong rates on ~41% of weekly data
+    const usdtryEntries = [];
     if (usdtryChart) {
         const uTs = usdtryChart.timestamp || [];
         const uClose = usdtryChart.indicators.quote[0].close || [];
         for (let i = 0; i < uTs.length; i++) {
-            const t = uTs[i];
-            const val = uClose[i];
-            if (t && val) {
-                const dtStr = new Date(t * 1000).toISOString().split('T')[0];
-                usdtryRates[dtStr] = val;
+            if (uTs[i] && uClose[i]) {
+                usdtryEntries.push({ ts: uTs[i], rate: uClose[i] });
             }
         }
+        // Already sorted chronologically from Yahoo, but ensure it
+        usdtryEntries.sort((a, b) => a.ts - b.ts);
     }
     
-    const sortedUsdtryDates = Object.keys(usdtryRates).sort();
+    // Find closest USDTRY rate by timestamp (binary search)
+    function findClosestRate(targetTs) {
+        if (usdtryEntries.length === 0) return null;
+        
+        let lo = 0, hi = usdtryEntries.length - 1;
+        while (lo < hi) {
+            const mid = (lo + hi) >> 1;
+            if (usdtryEntries[mid].ts < targetTs) {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+        
+        // Check both lo and lo-1 for closest
+        let bestIdx = lo;
+        if (lo > 0) {
+            const diffLo = Math.abs(usdtryEntries[lo].ts - targetTs);
+            const diffPrev = Math.abs(usdtryEntries[lo - 1].ts - targetTs);
+            if (diffPrev < diffLo) bestIdx = lo - 1;
+        }
+        
+        // Always return the closest available rate. We do not use maxGap limit
+        // because Yahoo Finance sometimes has different ranges or data availability
+        // for currencies vs BIST stocks, and falling back to 1.0 (treating TRY as USD)
+        // is catastrophically wrong and creates huge chart jumps.
+        return usdtryEntries[bestIdx].rate;
+    }
+    
+    // Helper: convert unix timestamp to local date string (browser timezone)
+    // This ensures the chart displays dates in the user's local timezone
+    function toLocalDateStr(unixTs) {
+        const d = new Date(unixTs * 1000);
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+    
     const alignedData = [];
     
     for (let i = 0; i < stockTs.length; i++) {
         const t = stockTs[i];
-        const o = stockOpen[i];
-        const h = stockHigh[i];
-        const l = stockLow[i];
-        const c = stockClose[i];
+        let o = stockOpen[i];
+        let h = stockHigh[i];
+        let l = stockLow[i];
+        let c = stockClose[i];
         const v = stockVolume[i] || 0;
         
         if (t === null || o === null || h === null || l === null || c === null) {
             continue;
         }
         
-        const dtStr = new Date(t * 1000).toISOString().split('T')[0];
+        // Apply split adjustments based on transition indices
+        for (const split of splitEvents) {
+            const ratio = split.ratio;
+            const transIdx = splitTransitionIndices[ratio];
+            if (transIdx !== undefined && transIdx !== -1) {
+                if (i < transIdx) {
+                    // All bars before transition are pre-split
+                    o /= ratio;
+                    h /= ratio;
+                    l /= ratio;
+                    c /= ratio;
+                } else if (i === transIdx) {
+                    // Transition bar itself - check if it's mixed
+                    // (open is pre-split while close is post-split)
+                    if (o / c > ratio * 0.5) {
+                        o /= ratio;
+                        h /= ratio;
+                    }
+                }
+            } else {
+                // Fallback to timestamp if transition index could not be determined
+                if (t < split.ts) {
+                    o /= ratio;
+                    h /= ratio;
+                    l /= ratio;
+                    c /= ratio;
+                }
+            }
+        }
+        
+        // Use local date string instead of UTC to avoid timezone-induced date shifts
+        const dtStr = toLocalDateStr(t);
         
         let rate = 1.0;
         if (ticker.endsWith('.IS')) {
-            rate = usdtryRates[dtStr];
-            if (!rate) {
-                let closestRate = null;
-                if (sortedUsdtryDates.length > 0) {
-                    for (let j = sortedUsdtryDates.length - 1; j >= 0; j--) {
-                        if (sortedUsdtryDates[j] <= dtStr) {
-                            closestRate = usdtryRates[sortedUsdtryDates[j]];
-                            break;
-                        }
-                    }
-                    if (!closestRate) closestRate = usdtryRates[sortedUsdtryDates[0]];
-                }
-                rate = closestRate || 1.0;
-            }
+            const matchedRate = findClosestRate(t);
+            rate = matchedRate || 1.0;
         }
         
         alignedData.push({
