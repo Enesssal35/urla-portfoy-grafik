@@ -284,6 +284,36 @@ function calculateEMA(prices, period) {
     return ema;
 }
 
+// Detect EMA Golden/Death Crosses and current trend
+function detectEMACross(rawPoints) {
+    if (rawPoints.length < 2) return { trend: 'neutral', cross: null };
+    
+    const last = rawPoints[rawPoints.length - 1];
+    if (last.ema50 === null || last.ema200 === null || last.ema50 === undefined || last.ema200 === undefined) {
+        return { trend: 'neutral', cross: null };
+    }
+    
+    const currentTrend = last.ema50 > last.ema200 ? 'bullish' : 'bearish';
+    
+    // Scan backwards (up to 10 candles) to see if the trend was different (cross)
+    let crossType = null;
+    const lookback = Math.min(10, rawPoints.length);
+    for (let i = 2; i <= lookback; i++) {
+        const prev = rawPoints[rawPoints.length - i];
+        if (!prev || prev.ema50 === null || prev.ema200 === null || prev.ema50 === undefined || prev.ema200 === undefined) {
+            break;
+        }
+        
+        const prevTrend = prev.ema50 > prev.ema200 ? 'bullish' : 'bearish';
+        if (prevTrend !== currentTrend) {
+            crossType = currentTrend === 'bullish' ? 'golden' : 'death';
+            break;
+        }
+    }
+    
+    return { trend: currentTrend, cross: crossType };
+}
+
 // Align BIST stocks with USDTRY date-by-date
 async function getUSDAlignedChartData(ticker, period) {
     let interval = '1d';
@@ -600,7 +630,10 @@ function createStockCard(stock) {
         <!-- Header Info -->
         <div class="card-header">
             <div class="company-info">
-                <div class="stock-ticker">${stock.ticker.split('.')[0]}</div>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <div class="stock-ticker">${stock.ticker.split('.')[0]}</div>
+                    <span class="trend-badge" id="trend-badge-${safeId}" style="display: none;"></span>
+                </div>
                 <div class="stock-name">${stock.name}</div>
             </div>
             <div class="price-info">
@@ -655,10 +688,40 @@ function createStockCard(stock) {
             </div>
         </div>
 
-        <!-- 52 Week High/Low Stats bar -->
-        <div class="hl-stats-bar">
-            <div>52 H. En Düşük: <strong id="low52-${safeId}">$--.--</strong></div>
-            <div>52 H. En Yüksek: <strong id="high52-${safeId}">$--.--</strong></div>
+        <!-- Progress Bars Section -->
+        <div class="hl-section">
+            <div class="hl-row">
+                <div class="hl-label-row">
+                    <span class="hl-label">Yıllık Aralık</span>
+                </div>
+                <div class="hl-progress-container">
+                    <span class="hl-price-low" id="low52-${safeId}">$--.--</span>
+                    <div class="hl-progress-track">
+                        <div class="hl-progress-fill" id="fill-52w-${safeId}"></div>
+                        <div class="hl-progress-dot" id="dot-52w-${safeId}">
+                            <span class="hl-dot-val" id="dot-val-52w-${safeId}">$--.--</span>
+                        </div>
+                    </div>
+                    <span class="hl-price-high" id="high52-${safeId}">$--.--</span>
+                </div>
+            </div>
+            
+            <div class="hl-row" style="margin-top: 6.5px;">
+                <div class="hl-label-row">
+                    <span class="hl-label">Tüm Zamanlar Zirvesi (ATH)</span>
+                    <span class="hl-ath-pct" id="ath-pct-${safeId}">--%</span>
+                </div>
+                <div class="hl-progress-container">
+                    <span class="hl-price-low" id="atl-${safeId}">$--.--</span>
+                    <div class="hl-progress-track ath-track">
+                        <div class="hl-progress-fill" id="fill-ath-${safeId}"></div>
+                        <div class="hl-progress-dot" id="dot-ath-${safeId}">
+                            <span class="hl-dot-val" id="dot-val-ath-${safeId}">$--.--</span>
+                        </div>
+                    </div>
+                    <span class="hl-price-high" id="ath-${safeId}">$--.--</span>
+                </div>
+            </div>
         </div>
     `;
     
@@ -1100,6 +1163,9 @@ async function fetchAndDrawChart(ticker) {
         });
         
         chartState.candleSeries.setData(candles);
+        
+
+
         chartState.volumeSeries.setData(volume);
         chartState.rsiSeries.setData(rsi);
         
@@ -1141,6 +1207,151 @@ async function fetchAndDrawChart(ticker) {
         low52El.textContent = `${sym}${summary.low_52w.toFixed(dec)}`;
         high52El.textContent = `${sym}${summary.high_52w.toFixed(dec)}`;
         timeEl.textContent = `${summary.last_updated}`;
+
+        // Update 52-week progress bar
+        const fillEl = document.getElementById(`fill-52w-${safeId}`);
+        const dotEl = document.getElementById(`dot-52w-${safeId}`);
+        const dotVal52w = document.getElementById(`dot-val-52w-${safeId}`);
+        if (fillEl && dotEl) {
+            const range = summary.high_52w - summary.low_52w;
+            const pct = range > 0 ? ((summary.current_price - summary.low_52w) / range) * 100 : 0;
+            const clampedPct = Math.max(0, Math.min(100, pct));
+            fillEl.style.width = `${clampedPct}%`;
+            dotEl.style.left = `${clampedPct}%`;
+            if (dotVal52w) {
+                dotVal52w.textContent = `${sym}${summary.current_price.toFixed(dec)}`;
+            }
+        }
+
+        // Lazy-load ATH/ATL in USD in background once per card
+        if (chartState.ath === undefined) {
+            // Fetch yearly data (max range) to scan for all-time prices
+            getUSDAlignedChartData(ticker, 'yearly').then(yearlyRes => {
+                if (yearlyRes && yearlyRes.data.length > 0) {
+                    const highs = yearlyRes.data.map(d => d.high);
+                    const lows = yearlyRes.data.map(d => d.low);
+                    chartState.ath = Math.max(...highs);
+                    chartState.atl = Math.min(...lows);
+                } else {
+                    chartState.ath = null;
+                    chartState.atl = null;
+                }
+                updateATHUI();
+            }).catch(err => {
+                console.error("ATH loading error:", err);
+                chartState.ath = null;
+                chartState.atl = null;
+                updateATHUI();
+            });
+        } else {
+            updateATHUI();
+        }
+
+        function updateATHUI() {
+            const athEl = document.getElementById(`ath-${safeId}`);
+            const atlEl = document.getElementById(`atl-${safeId}`);
+            const fillAthEl = document.getElementById(`fill-ath-${safeId}`);
+            const dotAthEl = document.getElementById(`dot-ath-${safeId}`);
+            const dotValAth = document.getElementById(`dot-val-ath-${safeId}`);
+            const athPctEl = document.getElementById(`ath-pct-${safeId}`);
+            
+            if (chartState.ath !== null && chartState.ath !== undefined && chartState.atl !== null && chartState.atl !== undefined) {
+                if (athEl) athEl.textContent = `${sym}${chartState.ath.toFixed(dec)}`;
+                if (atlEl) atlEl.textContent = `${sym}${chartState.atl.toFixed(dec)}`;
+                
+                const rangeAth = chartState.ath - chartState.atl;
+                const pctAth = rangeAth > 0 ? ((summary.current_price - chartState.atl) / rangeAth) * 100 : 0;
+                const clampedPctAth = Math.max(0, Math.min(100, pctAth));
+                
+                if (fillAthEl) fillAthEl.style.width = `${clampedPctAth}%`;
+                if (dotAthEl) dotAthEl.style.left = `${clampedPctAth}%`;
+                if (dotValAth) {
+                    dotValAth.textContent = `${sym}${summary.current_price.toFixed(dec)}`;
+                }
+                
+                // Dynamic colors for dot, fill, and value label based on gauge percentage
+                if (clampedPctAth >= 90) {
+                    if (dotAthEl) {
+                        dotAthEl.style.backgroundColor = '#ef5350'; // Red
+                        dotAthEl.style.boxShadow = '0 0 6px rgba(239, 83, 80, 0.6)';
+                    }
+                    if (fillAthEl) fillAthEl.style.background = '#ef5350';
+                    if (dotValAth) {
+                        dotValAth.style.color = '#ef5350';
+                        dotValAth.style.borderColor = 'rgba(239, 83, 80, 0.4)';
+                    }
+                } else if (clampedPctAth >= 80) {
+                    if (dotAthEl) {
+                        dotAthEl.style.backgroundColor = '#ffca28'; // Yellow
+                        dotAthEl.style.boxShadow = '0 0 6px rgba(255, 202, 40, 0.6)';
+                    }
+                    if (fillAthEl) fillAthEl.style.background = '#ffca28';
+                    if (dotValAth) {
+                        dotValAth.style.color = '#ffca28';
+                        dotValAth.style.borderColor = 'rgba(255, 202, 40, 0.4)';
+                    }
+                } else {
+                    if (dotAthEl) {
+                        dotAthEl.style.backgroundColor = '#66bb6a'; // Green
+                        dotAthEl.style.boxShadow = '0 0 6px rgba(102, 187, 106, 0.5)';
+                    }
+                    if (fillAthEl) fillAthEl.style.background = 'linear-gradient(90deg, #29b6f6, #66bb6a)';
+                    if (dotValAth) {
+                        dotValAth.style.color = '#66bb6a';
+                        dotValAth.style.borderColor = 'rgba(102, 187, 106, 0.4)';
+                    }
+                }
+                
+                // Distance to ATH: e.g. -15.4%
+                const distPct = chartState.ath > 0 ? -((chartState.ath - summary.current_price) / chartState.ath) * 100 : 0;
+                if (athPctEl) {
+                    athPctEl.textContent = `${distPct.toFixed(1)}%`;
+                    // Color code distance label to match the current zone
+                    if (clampedPctAth >= 90) {
+                        athPctEl.style.color = '#ef5350'; // Red
+                    } else if (clampedPctAth >= 80) {
+                        athPctEl.style.color = '#ffca28'; // Yellow
+                    } else {
+                        athPctEl.style.color = '#66bb6a'; // Green
+                    }
+                }
+            } else {
+                if (athEl) athEl.textContent = 'N/A';
+                if (atlEl) atlEl.textContent = 'N/A';
+                if (athPctEl) athPctEl.textContent = '--%';
+            }
+        }
+
+        // Update Trend / Cross Badge
+        const trendEl = document.getElementById(`trend-badge-${safeId}`);
+        if (trendEl) {
+            const emaStatus = detectEMACross(rawPoints);
+            trendEl.className = 'trend-badge'; // Reset classes
+            
+            if (emaStatus.cross === 'golden') {
+                trendEl.classList.add('golden-cross');
+                trendEl.innerHTML = '<i class="fa-solid fa-star"></i> Golden Cross';
+                trendEl.style.display = 'inline-flex';
+                trendEl.title = "EMA 50, EMA 200'ü son 10 mum içinde yukarı kesti (Yükseliş Sinyali)";
+            } else if (emaStatus.cross === 'death') {
+                trendEl.classList.add('death-cross');
+                trendEl.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Death Cross';
+                trendEl.style.display = 'inline-flex';
+                trendEl.title = "EMA 50, EMA 200'ü son 10 mum içinde aşağı kesti (Düşüş Sinyali)";
+            } else if (emaStatus.trend === 'bullish') {
+                trendEl.classList.add('bullish');
+                trendEl.innerHTML = '<i class="fa-solid fa-arrow-up-long"></i> Boğa';
+                trendEl.style.display = 'inline-flex';
+                trendEl.title = "EMA 50 > EMA 200 (Yükseliş Trendi)";
+            } else if (emaStatus.trend === 'bearish') {
+                trendEl.classList.add('bearish');
+                trendEl.innerHTML = '<i class="fa-solid fa-arrow-down-long"></i> Ayı';
+                trendEl.style.display = 'inline-flex';
+                trendEl.title = "EMA 50 < EMA 200 (Düşüş Trendi)";
+            } else {
+                trendEl.style.display = 'none';
+            }
+        }
         
         // Update Legend with latest point
         const latestPoint = rawPoints[rawPoints.length - 1];

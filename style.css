@@ -557,24 +557,197 @@ body {
     border-color: rgba(98, 0, 234, 0.3);
 }
 
-/* Card 52-Week High/Low Stats bar */
-.hl-stats-bar {
+/* Card 52-Week High/Low Progress bar */
+.hl-section {
     display: flex;
-    justify-content: space-between;
-    font-size: 0.7rem;
-    color: var(--text-secondary);
+    flex-direction: column;
     background-color: rgba(0, 0, 0, 0.1);
     padding: 0.5rem 0.75rem;
     border-radius: 6px;
-    transition: background-color var(--transition-normal), color var(--transition-normal);
+    transition: background-color var(--transition-normal);
 }
 
-[data-theme="light"] .hl-stats-bar {
+[data-theme="light"] .hl-section {
     background-color: rgba(0, 0, 0, 0.02);
 }
 
-.hl-stats-bar strong {
+.hl-row {
+    display: flex;
+    flex-direction: column;
+}
+
+.hl-label-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 11px; /* Space for the floating price label */
+}
+
+.hl-label {
+    font-size: 0.62rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.hl-ath-pct {
+    font-size: 0.65rem;
+    font-weight: 700;
+    transition: color var(--transition-normal);
+}
+
+.hl-progress-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    font-size: 0.68rem;
+    color: var(--text-secondary);
+    transition: color var(--transition-normal);
+}
+
+.hl-progress-track {
+    position: relative;
+    flex: 1;
+    height: 4px;
+    background-color: rgba(255, 255, 255, 0.08);
+    border-radius: 2px;
+}
+
+[data-theme="light"] .hl-progress-track {
+    background-color: rgba(0, 0, 0, 0.06);
+}
+
+/* ATH Progress Track Gauge (80-90% Yellow, 90-100% Red) - Saturated and visible */
+.hl-progress-track.ath-track {
+    background: linear-gradient(90deg, 
+        rgba(255, 255, 255, 0.08) 0%, 
+        rgba(255, 255, 255, 0.08) 80%, 
+        rgba(255, 202, 40, 0.55) 80%, 
+        rgba(255, 202, 40, 0.55) 90%, 
+        rgba(239, 83, 80, 0.55) 90%, 
+        rgba(239, 83, 80, 0.55) 100%
+    );
+}
+
+[data-theme="light"] .hl-progress-track.ath-track {
+    background: linear-gradient(90deg, 
+        rgba(0, 0, 0, 0.06) 0%, 
+        rgba(0, 0, 0, 0.06) 80%, 
+        rgba(255, 179, 0, 0.55) 80%, 
+        rgba(255, 179, 0, 0.55) 90%, 
+        rgba(229, 57, 53, 0.55) 90%, 
+        rgba(229, 57, 53, 0.55) 100%
+    );
+}
+
+.hl-progress-fill {
+    position: absolute;
+    left: 0;
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #29b6f6, #66bb6a);
+    border-radius: 2px;
+    opacity: 0.85; /* Saturated and premium fill opacity */
+}
+
+.hl-progress-dot {
+    position: absolute;
+    top: 50%;
+    left: 0%;
+    width: 8px;
+    height: 8px;
+    background-color: #66bb6a;
+    border: 1.5px solid #1a1a1a;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 6px rgba(102, 187, 106, 0.5);
+    transition: left var(--transition-normal);
+}
+
+[data-theme="light"] .hl-progress-dot {
+    border-color: #ffffff;
+}
+
+.hl-dot-val {
+    position: absolute;
+    bottom: 9px; /* Float above the progress bar */
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #1e1e1e;
+    color: #66bb6a;
+    padding: 1px 4px;
+    font-size: 0.62rem;
+    font-weight: 700;
+    border-radius: 4px;
+    border: 1px solid rgba(102, 187, 106, 0.4);
+    white-space: nowrap;
+    pointer-events: none;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+    z-index: 10;
+    transition: background-color var(--transition-normal), border-color var(--transition-normal);
+}
+
+[data-theme="light"] .hl-dot-val {
+    background-color: #ffffff;
+    border-color: rgba(102, 187, 106, 0.6);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+.hl-price-low, .hl-price-high {
+    font-weight: 600;
     color: var(--text-primary);
+}
+
+/* Trend and Cross Badges */
+.trend-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 0.15rem 0.4rem;
+    font-size: 0.65rem;
+    font-weight: 700;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    transition: all var(--transition-normal);
+}
+
+.trend-badge.bullish {
+    background-color: rgba(0, 200, 83, 0.08);
+    color: #66bb6a;
+    border: 1px solid rgba(0, 200, 83, 0.15);
+}
+
+.trend-badge.bearish {
+    background-color: rgba(213, 0, 0, 0.08);
+    color: #ef5350;
+    border: 1px solid rgba(213, 0, 0, 0.15);
+}
+
+.trend-badge.golden-cross {
+    background: linear-gradient(135deg, rgba(255, 202, 40, 0.12), rgba(0, 200, 83, 0.12));
+    color: #ffca28;
+    border: 1px solid rgba(255, 202, 40, 0.3);
+    box-shadow: 0 0 8px rgba(255, 202, 40, 0.15);
+    animation: pulse-glow 2s infinite alternate;
+}
+
+.trend-badge.death-cross {
+    background: linear-gradient(135deg, rgba(239, 83, 80, 0.12), rgba(213, 0, 0, 0.12));
+    color: #ef5350;
+    border: 1px solid rgba(239, 83, 80, 0.3);
+    box-shadow: 0 0 8px rgba(239, 83, 80, 0.15);
+}
+
+@keyframes pulse-glow {
+    0% {
+        box-shadow: 0 0 4px rgba(255, 202, 40, 0.1);
+    }
+    100% {
+        box-shadow: 0 0 10px rgba(255, 202, 40, 0.3);
+    }
 }
 
 /* ==========================================================================
@@ -866,9 +1039,11 @@ body {
         gap: 0.4rem;
     }
     
-    .hl-stats-bar {
+    .hl-section {
+        padding: 0.4rem 0.6rem;
+    }
+    .hl-progress-container {
         font-size: 0.65rem;
-        padding-top: 0.5rem;
     }
 }
 
@@ -1028,8 +1203,10 @@ body {
         padding: 0.1rem 0.3rem !important;
     }
     
-    .hl-stats-bar {
+    .hl-section {
         padding: 0.3rem 0.5rem !important;
+    }
+    .hl-progress-container {
         font-size: 0.6rem !important;
     }
 }
