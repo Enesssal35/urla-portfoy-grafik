@@ -295,6 +295,9 @@ async function getUSDAlignedChartData(ticker, period) {
     } else if (period === 'monthly') {
         interval = '1mo';
         range = '20y'; // Increased for EMA 200 on monthly
+    } else if (period === 'yearly') {
+        interval = '1mo'; // Fetch monthly data and aggregate to yearly in JS
+        range = 'max'; // Fetch maximum history for yearly chart
     }
     
     const stockPromise = fetchYahooChart(ticker, interval, range);
@@ -332,18 +335,34 @@ async function getUSDAlignedChartData(ticker, period) {
     const splitTransitionIndices = {};
     for (const split of splitEvents) {
         const ratio = split.ratio;
+        
+        // Only adjust splits with ratio >= 1.5 to filter out small/old splits
+        // that Yahoo has already adjusted (prevents false positives from normal volatility)
+        if (ratio < 1.5) {
+            splitTransitionIndices[ratio] = -1;
+            continue;
+        }
+        
+        let maxDrop = 0.0;
         let transitionIdx = -1;
-        for (let j = stockTs.length - 1; j > 0; j--) {
+        for (let j = 1; j < stockTs.length; j++) {
             const cCurr = stockClose[j];
             const cPrev = stockClose[j - 1];
-            if (cCurr !== null && cPrev !== null) {
-                if (cPrev / cCurr > ratio * 0.5) {
+            if (cCurr !== null && cPrev !== null && cCurr > 0) {
+                const drop = cPrev / cCurr;
+                if (drop > maxDrop) {
+                    maxDrop = drop;
                     transitionIdx = j;
-                    break;
                 }
             }
         }
-        splitTransitionIndices[ratio] = transitionIdx;
+        
+        // If the maximum drop matches the expected split ratio closely (at least 70%)
+        if (maxDrop > ratio * 0.7) {
+            splitTransitionIndices[ratio] = transitionIdx;
+        } else {
+            splitTransitionIndices[ratio] = -1;
+        }
     }
     
     // Build sorted array of USDTRY {ts, rate} for timestamp-based matching
@@ -415,7 +434,7 @@ async function getUSDAlignedChartData(ticker, period) {
             continue;
         }
         
-        // Apply split adjustments based on transition indices
+        // Apply split adjustments based on transition indices (only if transition found, no fallback)
         for (const split of splitEvents) {
             const ratio = split.ratio;
             const transIdx = splitTransitionIndices[ratio];
@@ -433,14 +452,6 @@ async function getUSDAlignedChartData(ticker, period) {
                         o /= ratio;
                         h /= ratio;
                     }
-                }
-            } else {
-                // Fallback to timestamp if transition index could not be determined
-                if (t < split.ts) {
-                    o /= ratio;
-                    h /= ratio;
-                    l /= ratio;
-                    c /= ratio;
                 }
             }
         }
@@ -465,10 +476,47 @@ async function getUSDAlignedChartData(ticker, period) {
         });
     }
     
-    if (alignedData.length === 0) return null;
+    let finalData = alignedData;
+    if (period === 'yearly') {
+        const yearsMap = {};
+        for (const item of alignedData) {
+            const year = item.time.split('-')[0];
+            if (!yearsMap[year]) {
+                yearsMap[year] = [];
+            }
+            yearsMap[year].push(item);
+        }
+        
+        const aggregated = [];
+        const sortedYears = Object.keys(yearsMap).sort();
+        for (const y of sortedYears) {
+            const items = yearsMap[y];
+            const first = items[0];
+            const last = items[items.length - 1];
+            
+            const yOpen = first.open;
+            const yClose = last.close;
+            const yHigh = Math.max(...items.map(x => x.high));
+            const yLow = Math.min(...items.map(x => x.low));
+            const yVolume = items.reduce((sum, x) => sum + x.volume, 0);
+            
+            aggregated.push({
+                time: first.time, // Using the first trading day's date of that year in the group
+                open: yOpen,
+                high: yHigh,
+                low: yLow,
+                close: yClose,
+                volume: yVolume,
+                rate: last.rate
+            });
+        }
+        finalData = aggregated;
+    }
+    
+    if (finalData.length === 0) return null;
     
     // Extract closes
-    const closes = alignedData.map(item => item.close);
+    const closes = finalData.map(item => item.close);
     
     // Calculate Indicators
     const rsiVals = calculateRSI(closes, 14);
@@ -478,7 +526,7 @@ async function getUSDAlignedChartData(ticker, period) {
     const ema100Vals = calculateEMA(closes, 100);
     const ema200Vals = calculateEMA(closes, 200);
     
-    alignedData.forEach((item, index) => {
+    finalData.forEach((item, index) => {
         item.rsi = rsiVals[index];
         item.ema8 = ema8Vals[index];
         item.ema20 = ema20Vals[index];
@@ -487,12 +535,12 @@ async function getUSDAlignedChartData(ticker, period) {
         item.ema200 = ema200Vals[index];
     });
     
-    const currentPrice = alignedData[alignedData.length - 1].close;
-    const prevPrice = alignedData.length > 1 ? alignedData[alignedData.length - 2].close : currentPrice;
+    const currentPrice = finalData[finalData.length - 1].close;
+    const prevPrice = finalData.length > 1 ? finalData[finalData.length - 2].close : currentPrice;
     const change = currentPrice - prevPrice;
     const changePercent = prevPrice !== 0 ? (change / prevPrice) * 100 : 0;
     
-    const slicedFor52w = alignedData.slice(-252);
+    const slicedFor52w = finalData.slice(-252);
     const highs = slicedFor52w.map(item => item.high);
     const lows = slicedFor52w.map(item => item.low);
     const high52w = Math.max(...highs);
@@ -502,7 +550,7 @@ async function getUSDAlignedChartData(ticker, period) {
         ticker: ticker,
         name: appState.stocks.find(s => s.ticker === ticker)?.name || ticker.split('.')[0],
         period: period,
-        data: alignedData,
+        data: finalData,
         summary: {
             current_price: currentPrice,
             change: change,
@@ -567,6 +615,7 @@ function createStockCard(stock) {
                 <button class="toggle-btn active" data-period="daily">G</button>
                 <button class="toggle-btn" data-period="weekly">H</button>
                 <button class="toggle-btn" data-period="monthly">A</button>
+                <button class="toggle-btn" data-period="yearly">Y</button>
             </div>
             <div class="card-actions">
                 <span class="meta-info" id="time-${safeId}">--:--:--</span>
